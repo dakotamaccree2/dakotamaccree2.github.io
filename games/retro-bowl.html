@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Retro Bowl — Play</title>
+    <link rel="stylesheet" href="../styles.css" />
+    <style>
+      .embed-shell { padding: 1rem; }
+      .game-area { display:flex; gap:1rem; align-items:flex-start; }
+      canvas { background: #071029; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.6); }
+      .controls { max-width: 320px; }
+      .controls p { color: var(--muted); }
+      .hud { display:flex; gap:1rem; align-items:center; margin-bottom:1rem; }
+      .button.small { padding: 0.5rem 0.75rem; border-radius:8px; }
+    </style>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container nav">
+        <div class="brand">🎮 Game Arcade</div>
+        <nav>
+          <a href="../index.html">Home</a>
+          <a href="index.html">Games</a>
+        </nav>
+      </div>
+    </header>
+
+    <main class="container embed-shell">
+      <div class="hud">
+        <h1 style="margin:0">Retro Bowl</h1>
+        <div style="margin-left:auto; display:flex; gap:0.5rem; align-items:center">
+          <div class="score">Score: <strong id="score">0</strong></div>
+          <button class="button small" id="restart">Restart</button>
+        </div>
+      </div>
+
+      <div class="game-area">
+        <canvas id="game" width="720" height="400"></canvas>
+
+        <aside class="controls">
+          <h3>How to play</h3>
+          <p>Control the runner with Left / Right (A / D) and press Space to Dash.
+          Reach the goal line on the right while avoiding defenders to score.
+          Each score increases speed slightly.</p>
+          <p>Click the canvas to focus, use P to pause.</p>
+        </aside>
+      </div>
+    </main>
+
+    <script>
+      const canvas = document.getElementById('game');
+      const ctx = canvas.getContext('2d');
+      const scoreEl = document.getElementById('score');
+      const restartBtn = document.getElementById('restart');
+
+      const W = canvas.width, H = canvas.height;
+
+      let player = { x: 40, y: H/2 - 20, w: 24, h: 40, vx:0, vy:0 };
+      let defenders = [];
+      let goalX = W - 60;
+      let score = 0;
+      let speed = 1.2;
+      let running = true;
+      let keys = {};
+      let tick = 0;
+
+      function spawnDefender() {
+        const size = 28 + Math.random() * 20;
+        const y = 40 + Math.random() * (H - 80);
+        const dir = Math.random() < 0.5 ? -1 : 1;
+        const vx = (1 + Math.random()*1.5) * (0.6 + speed*0.25) * (Math.random()<0.5?1:-1);
+        defenders.push({ x: 200 + Math.random()*300, y, w: size*0.6, h: size, vx, dodge: Math.random()*80 });
+      }
+
+      function reset(r = false) {
+        player.x = 40; player.y = H/2 - 20; player.vx = 0; player.vy = 0;
+        defenders = [];
+        for (let i=0;i<5;i++) spawnDefender();
+        goalX = W - 60;
+        if (r) { score = 0; speed = 1.2; }
+        scoreEl.textContent = score;
+        running = true;
+      }
+
+      function rectsOverlap(a,b){ return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y; }
+
+      function update(dt){
+        if (!running) return;
+        tick++;
+        // input
+        const accel = 0.35 + speed*0.05;
+        if (keys['ArrowLeft'] || keys['a']) player.vx -= accel;
+        if (keys['ArrowRight'] || keys['d']) player.vx += accel;
+        if (keys[' ']) { player.vx += 1.8 + speed*0.6; }
+        // friction
+        player.vx *= 0.86;
+        player.x += player.vx;
+        // clamp
+        if (player.x < 10) { player.x = 10; player.vx = 0; }
+        if (player.x + player.w > goalX) player.x = goalX - player.w;
+
+        // defenders move
+        defenders.forEach((d,i)=>{
+          d.x += d.vx;
+          // bobbing vertically
+          d.y += Math.sin((tick + i*13)/20) * 0.6;
+          // keep inside
+          if (d.x < 80) d.vx = Math.abs(d.vx);
+          if (d.x + d.w > goalX - 20) d.vx = -Math.abs(d.vx);
+        });
+
+        // collision
+        defenders.forEach(d=>{
+          if (rectsOverlap(player,d)) {
+            // hit: knockback and small penalty
+            player.x = Math.max(30, player.x - 60);
+            player.vx = -2.2;
+            // small speed penalty
+            speed = Math.max(1.0, speed - 0.25);
+          }
+        });
+
+        // goal check
+        if (player.x + player.w >= goalX - 2) {
+          score += 1; speed += 0.18; scoreEl.textContent = score;
+          // celebration and reset position
+          player.x = 40; player.vx = 0;
+          // spawn more defenders
+          for (let i=0;i<2;i++) spawnDefender();
+        }
+
+        // occasionally spawn
+        if (Math.random() < 0.01 + speed*0.006) spawnDefender();
+        // cap defenders
+        if (defenders.length > 18) defenders.splice(0, defenders.length - 18);
+      }
+
+      function draw(){
+        ctx.clearRect(0,0,W,H);
+        // field
+        const grd = ctx.createLinearGradient(0,0,0,H); grd.addColorStop(0,'#0a1b2b'); grd.addColorStop(1,'#05202b');
+        ctx.fillStyle = grd; ctx.fillRect(0,0,W,H);
+        // sidelines
+        ctx.fillStyle = '#06324a'; ctx.fillRect(0,0,10,H); ctx.fillRect(goalX,0,10,H);
+        // goal line
+        ctx.fillStyle = '#fff2'; ctx.fillRect(goalX-4,0,2,H);
+        // draw defenders
+        defenders.forEach(d=>{
+          ctx.fillStyle = '#c33'; ctx.fillRect(d.x, d.y, d.w, d.h);
+          ctx.fillStyle = '#7b0'; ctx.fillRect(d.x + 4, d.y + 6, d.w - 8, 6);
+        });
+        // draw player
+        ctx.fillStyle = '#0cf'; ctx.fillRect(player.x, player.y, player.w, player.h);
+        // helmet stripe
+        ctx.fillStyle = '#084'; ctx.fillRect(player.x + 2, player.y + 4, player.w - 4, 6);
+        // HUD
+        ctx.fillStyle = '#fff8'; ctx.font = '14px Arial'; ctx.fillText('Score: ' + score, 14, 20);
+        ctx.fillText('Goal line →', goalX - 90, 20);
+      }
+
+      // game loop
+      let last = performance.now();
+      function loop(now){
+        const dt = now - last; last = now;
+        update(dt);
+        draw();
+        requestAnimationFrame(loop);
+      }
+
+      // input
+      window.addEventListener('keydown', e=>{ keys[e.key] = true; if (e.key === 'p') running = !running; });
+      window.addEventListener('keyup', e=>{ keys[e.key] = false; });
+
+      canvas.addEventListener('click', ()=> canvas.focus());
+      restartBtn.addEventListener('click', ()=> reset(true));
+
+      reset(true);
+      requestAnimationFrame(loop);
+    </script>
+  </body>
+</html>
