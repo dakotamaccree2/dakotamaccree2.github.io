@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Snake</title>
+    <link rel="stylesheet" href="../styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container nav">
+        <div class="brand">🎮 Game Arcade</div>
+        <nav>
+          <a href="../index.html">Home</a>
+          <a href="index.html">Games</a>
+        </nav>
+      </div>
+    </header>
+
+    <main class="container game-wrap">
+      <div class="status">
+        <h1>Snake</h1>
+        <div class="score">Score: <span id="score">0</span></div>
+      </div>
+
+      <div class="canvas-shell">
+        <canvas id="gameCanvas" width="420" height="420"></canvas>
+      </div>
+
+      <div class="panel">
+        <p>Use arrow keys or WASD to move. Eat the glowing food and avoid walls and your tail.</p>
+        <button class="button primary" id="restartBtn" type="button">Restart</button>
+        <a class="back-link button secondary" href="index.html">Back to games</a>
+      </div>
+    </main>
+
+    <script>
+      const canvas = document.getElementById('gameCanvas');
+      const ctx = canvas.getContext('2d');
+      const scoreEl = document.getElementById('score');
+      const restartBtn = document.getElementById('restartBtn');
+
+      const grid = 20;
+      const tileCount = canvas.width / grid;
+
+      let snake;
+      let direction;
+      let nextDirection;
+      let food;
+      let score;
+      let loop;
+
+      function resetGame() {
+        snake = [
+          { x: 10, y: 10 },
+          { x: 9, y: 10 },
+          { x: 8, y: 10 }
+        ];
+        direction = { x: 1, y: 0 };
+        nextDirection = { x: 1, y: 0 };
+        score = 0;
+        scoreEl.textContent = score;
+        placeFood();
+        if (loop) clearInterval(loop);
+        loop = setInterval(update, 110);
+      }
+
+      function placeFood() {
+        let valid = [];
+        for (let y = 0; y < tileCount; y++) {
+          for (let x = 0; x < tileCount; x++) {
+            const overlap = snake.some(segment => segment.x === x && segment.y === y);
+            if (!overlap) valid.push({ x, y });
+          }
+        }
+        food = valid[Math.floor(Math.random() * valid.length)] || { x: 0, y: 0 };
+      }
+
+      function update() {
+        direction = nextDirection;
+        const head = { x: snake[0].x + direction.x, y: snake[0].y + direction.y };
+
+        const hitWall = head.x < 0 || head.y < 0 || head.x >= tileCount || head.y >= tileCount;
+        const hitSelf = snake.some((segment, idx) => idx < snake.length && segment.x === head.x && segment.y === head.y);
+
+        if (hitWall || hitSelf) {
+          clearInterval(loop);
+          alert('Game over!');
+          resetGame();
+          return;
+        }
+
+        snake.unshift(head);
+
+        if (head.x === food.x && head.y === food.y) {
+          score += 10;
+          scoreEl.textContent = score;
+          placeFood();
+        } else {
+          snake.pop();
+        }
+
+        draw();
+      }
+
+      function draw() {
+        ctx.fillStyle = '#0f172a';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        for (let x = 0; x < tileCount; x++) {
+          for (let y = 0; y < tileCount; y++) {
+            ctx.strokeStyle = 'rgba(148,163,184,0.1)';
+            ctx.strokeRect(x * grid, y * grid, grid, grid);
+          }
+        }
+
+        snake.forEach((segment, index) => {
+          ctx.fillStyle = index === 0 ? '#22c55e' : '#16a34a';
+          ctx.fillRect(segment.x * grid + 1, segment.y * grid + 1, grid - 2, grid - 2);
+        });
+
+        ctx.fillStyle = '#facc15';
+        ctx.fillRect(food.x * grid + 4, food.y * grid + 4, grid - 8, grid - 8);
+      }
+
+      document.addEventListener('keydown', (event) => {
+        const key = event.key.toLowerCase();
+        const moves = {
+          arrowup: { x: 0, y: -1 },
+          w: { x: 0, y: -1 },
+          arrowdown: { x: 0, y: 1 },
+          s: { x: 0, y: 1 },
+          arrowleft: { x: -1, y: 0 },
+          a: { x: -1, y: 0 },
+          arrowright: { x: 1, y: 0 },
+          d: { x: 1, y: 0 }
+        };
+
+        const move = moves[key];
+        if (!move) return;
+
+        const opposite = direction.x + move.x === 0 && direction.y + move.y === 0;
+        if (opposite) return;
+
+        nextDirection = move;
+      });
+
+      restartBtn.addEventListener('click', resetGame);
+      resetGame();
+    </script>
+  </body>
+</html>
