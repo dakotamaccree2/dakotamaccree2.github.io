@@ -115,6 +115,10 @@ p {
   line-height: 1.6;
 }
 
+.lead {
+  font-size: 1.05rem;
+}
+
 .cta-row {
   display: flex;
   flex-wrap: wrap;
